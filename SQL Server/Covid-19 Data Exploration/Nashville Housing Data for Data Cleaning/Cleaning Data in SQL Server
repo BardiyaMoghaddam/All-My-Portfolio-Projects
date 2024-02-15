@@ -1,0 +1,181 @@
+--Cleaning data
+
+select*
+from Nashville
+
+--first I wanna remove the time at the end of SaleDate
+
+select SaleDate, CONVERT(date,SaleDate)
+from Nashville
+
+--i add one more column as date
+alter table Nashville
+add SaleDate2 Date;
+--add values to it
+update Nashville
+set SaleDate2 =  CONVERT(date,SaleDate)
+--check the result
+select SaleDate2
+from Nashville
+
+--When we look at ParcelID we see that it matches with the property address so we can find the address or ParcelID wherever we have NULL value for each of these two. we can replace the null value based on these two. we can JOIN the table to itself and say that the unique ID is not equal
+--so the code here is saying that if propert address is null take the new column we made and put it in the property address
+
+select b.ParcelID,a.ParcelID, a.PropertyAddress, b.PropertyAddress, ISNULL(a.PropertyAddress, b.PropertyAddress)
+from Nashville a
+Join Nashville b
+on a.ParcelID = b.ParcelID
+and a.[UniqueID ]<> b.[UniqueID ]
+where a.PropertyAddress is NULL
+
+--now we fixed the NULL data in property id and Parcel ID and we need to update our table
+
+update a
+set PropertyAddress=  ISNULL(a.PropertyAddress, b.PropertyAddress)
+from Nashville a
+Join Nashville b
+on a.ParcelID = b.ParcelID
+and a.[UniqueID ]<> b.[UniqueID ]
+where a.PropertyAddress is NULL
+
+--now we run the two above code again. if it doesnt give us any data it means we dont have any NULL value in these columns and we fixed it:
+select b.ParcelID,a.ParcelID, a.PropertyAddress, b.PropertyAddress, ISNULL(a.PropertyAddress, b.PropertyAddress)
+from Nashville a
+Join Nashville b
+on a.ParcelID = b.ParcelID
+and a.[UniqueID ]<> b.[UniqueID ]
+where a.PropertyAddress is NULL
+
+
+
+--Now I wanna make seperate columns for the address, city, and state which are all in one column as property address and we can seperate them based on the comma which are between them. we use -1 to remove the comma and we use +1 to add a comma
+
+select PropertyAddress
+from Nashville
+
+select
+SUBSTRING(propertyaddress, 1, charindex(',', propertyaddress)-1) as Address,
+SUBSTRING(propertyaddress, charindex(',', propertyaddress)+1,LEN(PropertyAddress))
+from Nashville
+
+--Now we can add it to our table
+
+alter table Nashville
+add SplitAddress Nvarchar(300);
+--add values to it
+
+update Nashville
+set SplitAddress =  SUBSTRING(propertyaddress, 1, charindex(',', propertyaddress)-1)
+
+alter table Nashville
+add SplitCity Nvarchar(300);
+--add values to it
+
+update Nashville
+set SplitCity =  SUBSTRING(propertyaddress, charindex(',', propertyaddress)+1,LEN(PropertyAddress))
+
+--let see what I have done
+select*
+from Nashville
+
+
+--Now I wanna fix the owner address too. but this time I wanna use PARSENAME instead of SUBSTRING which is easire but it is backward meaning that it seperate from right to left sowhen i write 1 2 and 3 at the end of my code below it seperates from right to left
+select owneraddress
+from  Nashville
+
+select
+PARSENAME(replace(owneraddress,',','.'),1),
+PARSENAME(replace(owneraddress,',','.'),2),
+PARSENAME(replace(owneraddress,',','.'),3)
+from nashville
+
+
+alter table Nashville
+add OwnerStatesAdress Nvarchar(300);
+--add values to it
+--states
+update Nashville
+set OwnerStatesAdress =  PARSENAME(replace(owneraddress,',','.'),1)
+
+select OwnerStatesAdress
+from Nashville
+
+--city
+
+alter table Nashville
+add OwnerCityAdress Nvarchar(300);
+--add values to it
+
+update Nashville
+set OwnerCityAdress =  PARSENAME(replace(owneraddress,',','.'),2)
+--address
+
+select OwnerCityAdress
+from Nashville
+
+alter table Nashville
+add OwnerSplitAdress Nvarchar(300);
+--add values to it
+
+update Nashville
+set OwnerSplitAdress =  PARSENAME(replace(owneraddress,',','.'),3)
+
+select OwnerSplitAdress, OwnerCityAdress, OwnerStatesAdress
+from Nashville
+
+--next step i wanna replace Y and N to YES and NO across all variables to make them homogeneous
+
+select distinct SoldAsVacant
+from Nashville
+
+
+select SoldAsVacant, 
+case when SoldAsVacant= 'Y' Then 'Yes'
+when SoldAsVacant= 'N' then 'No'
+Else SoldAsVacant
+End
+from nashville
+
+update Nashville
+set SoldAsVacant= case when SoldAsVacant= 'Y' Then 'Yes'
+when SoldAsVacant= 'N' then 'No'
+Else SoldAsVacant
+End
+from nashville
+
+select SoldAsVacant
+from Nashville
+
+--now I wanna Remove duplicates by using CTE if uniqueID,ParcelID,Property address,Saledate,LegalReference is the same
+
+with rownumberCTE as(
+select*,
+ROW_NUMBER()over(partition by  parcelID,
+								SalePrice,
+								SaleDate,
+								LegalReference,
+								PropertyAddress
+								Order by UniqueID
+) as row_numbe
+from Nashville
+)select*
+from rownumberCTE
+
+-----here we see the duplicates. now we can say that if the row_num is more than 1 then remove it
+
+delete
+from rownumberCTE
+where row_numbe > 1
+
+
+--i wanna delete unused columns now (dont do it on the raw data. always if you wanna delete anything do this on a copay version of the data)
+
+alter table nashville
+drop column owneraddress, taxdistrict, propertyaddress
+
+select*
+from Nashville
+
+
+
+
